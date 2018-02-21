@@ -52,7 +52,7 @@ parser.add_argument('--metadata_file', default='metadata.json',
     help="JSON file containing metadata about functions")
 parser.add_argument('--synonyms_json', default='synonyms.json',
     help="JSON file defining synonyms for parameter values")
-parser.add_argument('--template_dir', default='CLEVR_1.0_templates',
+parser.add_argument('--template_dir', default='CLEVR_loc_templates',
     help="Directory containing JSON templates for questions")
 
 # Output
@@ -150,7 +150,7 @@ def add_empty_filter_options(attribute_map, metadata, num_to_add):
     attr_keys = ['Size', 'Color', 'Material', 'Shape']
   else:
     assert False, 'Unrecognized dataset'
-  
+
   attr_vals = [metadata['types'][t] + [None] for t in attr_keys]
   if '_filter_options' in metadata:
     attr_vals = metadata['_filter_options']
@@ -242,7 +242,7 @@ def other_heuristic(text, param_vals):
 def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
                               synonyms, max_instances=None, verbose=False):
 
-  param_name_to_type = {p['name']: p['type'] for p in template['params']} 
+  param_name_to_type = {p['name']: p['type'] for p in template['params']}
 
   initial_state = {
     'nodes': [node_shallow_copy(template['nodes'][0])],
@@ -260,6 +260,7 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
     outputs = qeng.answer_question(q, metadata, scene_struct, all_outputs=True)
     answer = outputs[-1]
     if answer == '__INVALID__': continue
+    expr_obj = outputs[-2]
 
     # Check to make sure constraints are satisfied for the current state
     skip_state = False
@@ -334,6 +335,7 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
 
       answer_counts[answer] += 1
       state['answer'] = answer
+      state['expr_obj'] = expr_obj
       final_states.append(state)
       if max_instances is not None and len(final_states) == max_instances:
         break
@@ -479,10 +481,11 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
       })
 
   # Actually instantiate the template with the solutions we've found
-  text_questions, structured_questions, answers = [], [], []
+  text_questions, structured_questions, answers, expr_objs = [], [], [], []
   for state in final_states:
     structured_questions.append(state['nodes'])
     answers.append(state['answer'])
+    expr_objs.append(state['expr_obj'])
     text = random.choice(template['text'])
     for name, val in state['vals'].items():
       if val in synonyms:
@@ -494,7 +497,7 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
     text = other_heuristic(text, state['vals'])
     text_questions.append(text)
 
-  return text_questions, structured_questions, answers
+  return text_questions, structured_questions, answers, expr_objs
 
 
 
@@ -533,9 +536,10 @@ def main(args):
   with open(args.metadata_file, 'r') as f:
     metadata = json.load(f)
     dataset = metadata['dataset']
+    metadata['dataset'] = 'CLEVR-v1.0'
     if dataset != 'CLEVR-v1.0':
       raise ValueError('Unrecognized dataset "%s"' % dataset)
-  
+
   functions_by_name = {}
   for f in metadata['functions']:
     functions_by_name[f['name']] = f
@@ -622,7 +626,7 @@ def main(args):
         print('trying template ', fn, idx)
       if args.time_dfs and args.verbose:
         tic = time.time()
-      ts, qs, ans = instantiate_templates_dfs(
+      ts, qs, ans, objs = instantiate_templates_dfs(
                       scene_struct,
                       template,
                       metadata,
@@ -634,7 +638,7 @@ def main(args):
         toc = time.time()
         print('that took ', toc - tic)
       image_index = int(os.path.splitext(scene_fn)[0].split('_')[-1])
-      for t, q, a in zip(ts, qs, ans):
+      for t, q, a, o in zip(ts, qs, ans, objs):
         questions.append({
           'split': scene_info['split'],
           'image_filename': scene_fn,
@@ -643,6 +647,7 @@ def main(args):
           'question': t,
           'program': q,
           'answer': a,
+          'refexp_obj': o,
           'template_filename': fn,
           'question_family_index': idx,
           'question_index': len(questions),
@@ -692,4 +697,3 @@ if __name__ == '__main__':
     cProfile.run('main(args)')
   else:
     main(args)
-
