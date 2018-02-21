@@ -64,7 +64,7 @@ def relate_handler(scene_struct, inputs, side_inputs):
   assert len(side_inputs) == 1
   relation = side_inputs[0]
   return scene_struct['relationships'][relation][inputs[0]]
-    
+
 
 def union_handler(scene_struct, inputs, side_inputs):
   assert len(inputs) == 2
@@ -209,7 +209,6 @@ def answer_question(question, metadata, scene_struct, all_outputs=False,
     node_outputs.append(node_output)
     if node_output == '__INVALID__':
       break
-
   if all_outputs:
     return node_outputs
   else:
@@ -286,4 +285,3 @@ def is_degenerate(question, metadata, scene_struct, answer=None, verbose=False):
         return True
 
   return False
-

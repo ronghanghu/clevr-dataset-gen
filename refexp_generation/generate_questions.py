@@ -259,8 +259,8 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
     q = {'nodes': state['nodes']}
     outputs = qeng.answer_question(q, metadata, scene_struct, all_outputs=True)
     answer = outputs[-1]
+    refexp_obj = outputs[-2] if len(outputs) > 1 else None
     if answer == '__INVALID__': continue
-    expr_obj = outputs[-2]
 
     # Check to make sure constraints are satisfied for the current state
     skip_state = False
@@ -335,7 +335,8 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
 
       answer_counts[answer] += 1
       state['answer'] = answer
-      state['expr_obj'] = expr_obj
+      assert isinstance(refexp_obj, int)
+      state['refexp_obj'] = refexp_obj
       final_states.append(state)
       if max_instances is not None and len(final_states) == max_instances:
         break
@@ -481,11 +482,11 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
       })
 
   # Actually instantiate the template with the solutions we've found
-  text_questions, structured_questions, answers, expr_objs = [], [], [], []
+  text_questions, structured_questions, answers, refexp_objs = [], [], [], []
   for state in final_states:
     structured_questions.append(state['nodes'])
     answers.append(state['answer'])
-    expr_objs.append(state['expr_obj'])
+    refexp_objs.append(state['refexp_obj'])
     text = random.choice(template['text'])
     for name, val in state['vals'].items():
       if val in synonyms:
@@ -497,7 +498,7 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
     text = other_heuristic(text, state['vals'])
     text_questions.append(text)
 
-  return text_questions, structured_questions, answers, expr_objs
+  return text_questions, structured_questions, answers, refexp_objs
 
 
 
