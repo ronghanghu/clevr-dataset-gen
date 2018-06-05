@@ -7,7 +7,7 @@ shape_size_factor = {
 }
 
 
-def get_bbox(obj, scale=360.):
+def get_bbox(obj, scale=720.):
     x, y, z = obj['pixel_coords']
     size = 2. if obj['size'] == 'large' else 1.
     shape = obj['shape']
